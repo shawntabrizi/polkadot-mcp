@@ -55,7 +55,7 @@ The `subxt` client already downloads metadata on first connection (~200KB–1MB)
 | `pallet_info` | implemented | any | Overview of a single pallet: description (from docs), number of calls/storage/events/errors/constants. Answers: "does this chain have pallet X? what does it do?" |
 | `list_calls` | planned | any | List all extrinsics (dispatchable calls) for a pallet with one-line descriptions. Answers: "what can I do with the Staking pallet?" |
 | `call_info` | planned | any | Full detail for a specific call: parameters with names and types, documentation, dispatch origin. Answers: "what are the params for `Staking.nominate`?" |
-| `list_storage` | planned | any | List all storage entries for a pallet: name, key types, value type, docs summary. Answers: "what data does the Staking pallet store?" |
+| `list_storage` | implemented | any | List all storage entries for a pallet: name, key types, value type, hashers, modifier (Optional/Default). Answers: "what data does the Staking pallet store?" |
 | `storage_info` | planned | any | Full detail for a specific storage entry: key types, value type, default value, documentation. Answers: "what does `Staking.Ledger` contain and what are its keys?" |
 | `list_events` | planned | any | List all events for a pallet with field names and descriptions. Answers: "what events does Balances emit?" |
 | `list_errors` | planned | any | List all errors for a pallet with descriptions. Answers: "what errors can `ConvictionVoting.vote` return?" |

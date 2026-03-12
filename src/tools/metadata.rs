@@ -126,22 +126,13 @@ pub async fn pallet_info(
     };
 
     let metadata = api.metadata();
-    let pallet = match metadata.pallet_by_name(&params.pallet_name) {
+    let pallet = match find_pallet(&metadata, &params.pallet_name) {
         Some(p) => p,
         None => {
-            // Try case-insensitive match
-            match metadata
-                .pallets()
-                .find(|p| p.name().eq_ignore_ascii_case(&params.pallet_name))
-            {
-                Some(p) => p,
-                None => {
-                    return Ok(error_result(&format!(
-                        "Pallet '{}' not found on {}. Use list_pallets to see available pallets.",
-                        params.pallet_name, config.name
-                    )));
-                }
-            }
+            return Ok(error_result(&format!(
+                "Pallet '{}' not found on {}. Use list_pallets to see available pallets.",
+                params.pallet_name, config.name
+            )));
         }
     };
 
@@ -218,6 +209,138 @@ pub async fn pallet_info(
     }
 
     Ok(text_result(&output))
+}
+
+// ---------------------------------------------------------------------------
+// list_storage
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ListStorageParams {
+    /// Name of the pallet to list storage entries for (e.g. "System", "Balances", "Staking").
+    pub pallet_name: String,
+    /// Network to query: 'polkadot' (default), 'kusama', 'westend', or 'paseo'.
+    #[serde(default = "default_network")]
+    pub network: String,
+    /// Chain within the network: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', or 'coretime'.
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+pub async fn list_storage(
+    server: &PolkadotMcp,
+    params: ListStorageParams,
+) -> Result<CallToolResult> {
+    let config = match server.resolve(&params.network, &params.chain) {
+        Ok(c) => c,
+        Err(e) => return Ok(error_result(&e.to_string())),
+    };
+
+    let api = match server.pool.get(&config).await {
+        Ok(a) => a,
+        Err(e) => {
+            return Ok(error_result(&format!(
+                "Failed to connect to {}: {}",
+                config.name, e
+            )));
+        }
+    };
+
+    let metadata = api.metadata();
+    let pallet = match find_pallet(&metadata, &params.pallet_name) {
+        Some(p) => p,
+        None => {
+            return Ok(error_result(&format!(
+                "Pallet '{}' not found on {}. Use list_pallets to see available pallets.",
+                params.pallet_name, config.name
+            )));
+        }
+    };
+
+    let storage = match pallet.storage() {
+        Some(s) => s,
+        None => {
+            return Ok(error_result(&format!(
+                "Pallet '{}' has no storage entries on {}.",
+                pallet.name(),
+                config.name
+            )));
+        }
+    };
+
+    let entries = storage.entries();
+    let types = metadata.types();
+
+    let mut output = String::new();
+    output.push_str(&format!(
+        "Storage entries for {} on {} ({} entries):\n\n",
+        pallet.name(),
+        config.name,
+        entries.len()
+    ));
+
+    for entry in entries {
+        let entry_type = entry.entry_type();
+        let value_type = decode::type_to_string(entry_type.value_ty(), types);
+        let modifier = match entry.modifier() {
+            subxt::metadata::types::StorageEntryModifier::Optional => "Optional",
+            subxt::metadata::types::StorageEntryModifier::Default => "Default",
+        };
+
+        match entry_type {
+            subxt::metadata::types::StorageEntryType::Plain(_) => {
+                output.push_str(&format!(
+                    "  {} → {}  ({})\n",
+                    entry.name(),
+                    value_type,
+                    modifier,
+                ));
+            }
+            subxt::metadata::types::StorageEntryType::Map {
+                hashers,
+                key_ty,
+                ..
+            } => {
+                let key_type = decode::type_to_string(*key_ty, types);
+                let hasher_strs: Vec<&str> = hashers.iter().map(format_hasher).collect();
+                output.push_str(&format!(
+                    "  {}({}) → {}  [{}]  ({})\n",
+                    entry.name(),
+                    key_type,
+                    value_type,
+                    hasher_strs.join(", "),
+                    modifier,
+                ));
+            }
+        }
+    }
+
+    Ok(text_result(&output))
+}
+
+fn format_hasher(h: &subxt::metadata::types::StorageHasher) -> &'static str {
+    use subxt::metadata::types::StorageHasher;
+    match h {
+        StorageHasher::Blake2_128 => "Blake2_128",
+        StorageHasher::Blake2_256 => "Blake2_256",
+        StorageHasher::Blake2_128Concat => "Blake2_128Concat",
+        StorageHasher::Twox128 => "Twox128",
+        StorageHasher::Twox256 => "Twox256",
+        StorageHasher::Twox64Concat => "Twox64Concat",
+        StorageHasher::Identity => "Identity",
+    }
+}
+
+/// Case-insensitive pallet lookup helper.
+fn find_pallet<'a>(
+    metadata: &'a subxt::metadata::types::Metadata,
+    name: &str,
+) -> Option<subxt::metadata::types::PalletMetadata<'a>> {
+    metadata.pallet_by_name(name).or_else(|| {
+        metadata
+            .pallets()
+            .find(|p| p.name().eq_ignore_ascii_case(name))
+    })
 }
 
 // ---------------------------------------------------------------------------

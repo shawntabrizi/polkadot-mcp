@@ -124,6 +124,19 @@ impl PolkadotMcp {
             .map_err(|e| ErrorData::internal_error(e.to_string(), None))
     }
 
+    #[tool(description = "List all storage entries for a pallet with their key types, value types, \
+        hashers, and modifiers (Optional/Default). Shows the full storage API surface for a pallet. \
+        Use 'network' param for: 'polkadot' (default), 'kusama', 'westend', 'paseo'. \
+        Use 'chain' param for: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', 'coretime'.")]
+    async fn list_storage(
+        &self,
+        Parameters(params): Parameters<metadata::ListStorageParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        metadata::list_storage(self, params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
     #[tool(description = "Get the decoded value of a specific runtime constant. \
         Answers: 'what is the existential deposit?', 'how long is the unbonding period?', \
         'what is the max number of nominators?' \

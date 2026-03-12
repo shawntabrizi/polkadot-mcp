@@ -310,6 +310,87 @@ async fn test_constant_value_nonexistent() {
     assert_eq!(result.is_error, Some(true));
 }
 
+// --- List Storage ---
+
+#[tokio::test]
+#[ignore]
+async fn test_list_storage_system() {
+    let server = test_server();
+    let result = metadata::list_storage(
+        &server,
+        metadata::ListStorageParams {
+            pallet_name: "System".into(),
+            network: "westend".into(),
+            chain: "relay".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let text = extract_text(&result);
+    assert!(
+        text.contains("Storage entries for System"),
+        "should show pallet name"
+    );
+    assert!(text.contains("Account"), "System should have Account storage");
+    // Account is a Map with Blake2_128Concat hasher
+    assert!(
+        text.contains("Blake2_128Concat"),
+        "Account should use Blake2_128Concat hasher"
+    );
+    // Should show value types
+    assert!(
+        text.contains("AccountInfo"),
+        "Account value type should be AccountInfo"
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_list_storage_balances() {
+    let server = test_server();
+    let result = metadata::list_storage(
+        &server,
+        metadata::ListStorageParams {
+            pallet_name: "Balances".into(),
+            network: "westend".into(),
+            chain: "relay".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let text = extract_text(&result);
+    assert!(text.contains("Storage entries for Balances"));
+    // TotalIssuance is a Plain storage entry
+    assert!(
+        text.contains("TotalIssuance"),
+        "should have TotalIssuance"
+    );
+    // Locks is a Map
+    assert!(text.contains("Locks"), "should have Locks storage");
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_list_storage_nonexistent_pallet() {
+    let server = test_server();
+    let result = metadata::list_storage(
+        &server,
+        metadata::ListStorageParams {
+            pallet_name: "DoesNotExist".into(),
+            network: "westend".into(),
+            chain: "relay".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result.is_error, Some(true));
+    let text = extract_text(&result);
+    assert!(text.contains("not found"));
+}
+
 // --- Account Locks ---
 
 #[tokio::test]
