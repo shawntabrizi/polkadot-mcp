@@ -4,26 +4,66 @@ MCP server for AI-native interaction with Polkadot, Kusama, Westend, Paseo, and 
 
 Replace browser-based UIs with natural language. Ask your AI "what's my fellowship status?" or "why is my DOT frozen?" and get real answers backed by live on-chain data.
 
-## Quick Start
+## Install
 
 ```bash
-# Build
-cargo build --release
-
-# Add to Claude Desktop config (~/.config/claude/claude_desktop_config.json)
+cargo install polkadot-mcp
 ```
+
+Requires Rust. If you don't have it: [rustup.rs](https://rustup.rs)
+
+## Setup
+
+### Claude Desktop
+
+Add to your config file:
+
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "polkadot": {
-      "command": "/path/to/polkadot-mcp"
+      "command": "polkadot-mcp"
     }
   }
 }
 ```
 
-Restart Claude Desktop. Ask: *"What's the balance of 15oF4uVJwmo4TdGW7VfQxNLavjCXviqWrztPu9T1PLww5M9Q on polkadot?"*
+Restart Claude Desktop. Ask: *"What's the current block on Polkadot?"*
+
+### Claude Code
+
+```bash
+claude mcp add polkadot-mcp -- polkadot-mcp
+```
+
+### Cursor / VS Code
+
+Add to your MCP settings (`.cursor/mcp.json` or VS Code MCP config):
+
+```json
+{
+  "mcpServers": {
+    "polkadot": {
+      "command": "polkadot-mcp"
+    }
+  }
+}
+```
+
+### Any MCP Client
+
+`polkadot-mcp` uses stdio transport. Point any MCP-compatible client at the binary with no arguments.
+
+### Verify it works
+
+```bash
+# Interactive debugger — see tools, call them, inspect responses
+npx @modelcontextprotocol/inspector polkadot-mcp
+```
 
 ## Supported Networks & Chains
 
@@ -47,6 +87,8 @@ Note: Kusama does not have a Collectives chain.
 | **Governance** | "What's being voted on?" · "Vote aye on ref 1234" · "Who am I delegating to?" |
 | **Staking** | "How much have I earned staking?" · "How's my nomination pool?" · "Claim my rewards" |
 
+See [TOOLS.md](TOOLS.md) for the full tool catalog (~80 tools across 15 categories).
+
 ## Configuration
 
 ### Environment Variables
@@ -56,7 +98,7 @@ Note: Kusama does not have a Collectives chain.
 | `POLKADOT_SIGNER_URI` | *(none)* | Signer for transactions. Omit for read-only. |
 | `SUBSCAN_API_KEY` | *(none)* | Subscan API key for historical data |
 
-All networks are loaded at startup — no need for a `POLKADOT_NETWORK` env var.
+All networks are loaded at startup — no need for a network env var.
 
 ### Transaction Support
 
@@ -66,7 +108,7 @@ By default, the server runs in **read-only mode**. To enable transaction tools (
 {
   "mcpServers": {
     "polkadot": {
-      "command": "/path/to/polkadot-mcp",
+      "command": "polkadot-mcp",
       "env": {
         "POLKADOT_SIGNER_URI": "bottom drive obey lake curtain smoke basket hold race lonely fit walk//polkadot"
       }
