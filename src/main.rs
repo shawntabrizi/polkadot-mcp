@@ -21,10 +21,6 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting polkadot-mcp server");
 
-    // Select network from env (default: polkadot)
-    let network = network::Network::from_env()?;
-    tracing::info!(network = %network.name(), "Using network");
-
     // Load signer from env if available (read-only mode if not set)
     let signer = signer::load_from_env()?;
     if signer.is_some() {
@@ -33,12 +29,14 @@ async fn main() -> Result<()> {
         tracing::info!("No signer configured — read-only mode");
     }
 
-    // Build MCP server
-    let server = server::PolkadotMcp::new(network, signer);
+    // Build MCP server (all networks available)
+    let server = server::PolkadotMcp::new(signer);
 
     // Start stdio transport
     let transport = rmcp::transport::io::stdio();
-    let service = server.serve(transport).await
+    let service = server
+        .serve(transport)
+        .await
         .inspect_err(|e| tracing::error!("Failed to start server: {}", e))
         .expect("Failed to start MCP server");
     service.waiting().await?;

@@ -1,6 +1,6 @@
 # polkadot-mcp
 
-MCP server for AI-native interaction with Polkadot, Kusama, and Substrate chains.
+MCP server for AI-native interaction with Polkadot, Kusama, Westend, Paseo, and their system parachains.
 
 Replace browser-based UIs with natural language. Ask your AI "what's my fellowship status?" or "why is my DOT frozen?" and get real answers backed by live on-chain data.
 
@@ -23,7 +23,20 @@ cargo build --release
 }
 ```
 
-Restart Claude Desktop. Ask: *"What's the balance of 5GrwvaEF..."*
+Restart Claude Desktop. Ask: *"What's the balance of 15oF4uVJwmo4TdGW7VfQxNLavjCXviqWrztPu9T1PLww5M9Q on polkadot?"*
+
+## Supported Networks & Chains
+
+A single server instance has access to **all networks simultaneously**. Tools accept `network` and `chain` parameters to route queries.
+
+| Network | Token | Chains |
+|---|---|---|
+| **Polkadot** | DOT | relay, asset-hub, bridge-hub, people, collectives, coretime |
+| **Kusama** | KSM | relay, asset-hub, bridge-hub, people, coretime |
+| **Westend** (testnet) | WND | relay, asset-hub, bridge-hub, people, collectives, coretime |
+| **Paseo** (testnet) | PAS | relay, asset-hub, bridge-hub, people, collectives, coretime |
+
+Note: Kusama does not have a Collectives chain.
 
 ## What Can It Do?
 
@@ -40,9 +53,10 @@ Restart Claude Desktop. Ask: *"What's the balance of 5GrwvaEF..."*
 
 | Variable | Default | Description |
 |---|---|---|
-| `POLKADOT_NETWORK` | `polkadot` | Network: `polkadot`, `kusama`, `westend` |
 | `POLKADOT_SIGNER_URI` | *(none)* | Signer for transactions. Omit for read-only. |
 | `SUBSCAN_API_KEY` | *(none)* | Subscan API key for historical data |
+
+All networks are loaded at startup — no need for a `POLKADOT_NETWORK` env var.
 
 ### Transaction Support
 
@@ -61,40 +75,23 @@ By default, the server runs in **read-only mode**. To enable transaction tools (
 }
 ```
 
-### Multiple Networks
-
-Run separate instances for Polkadot and Kusama:
-
-```json
-{
-  "mcpServers": {
-    "polkadot": {
-      "command": "/path/to/polkadot-mcp",
-      "env": { "POLKADOT_NETWORK": "polkadot" }
-    },
-    "kusama": {
-      "command": "/path/to/polkadot-mcp",
-      "env": { "POLKADOT_NETWORK": "kusama" }
-    }
-  }
-}
-```
-
 ## Architecture
 
-Built on [subxt](https://github.com/paritytech/subxt) (dynamic mode) and [rmcp](https://crates.io/crates/rmcp) (Anthropic's Rust MCP SDK).
+Built on [subxt](https://github.com/paritytech/subxt) (dynamic mode) and [rmcp](https://crates.io/crates/rmcp) (Rust MCP SDK).
 
-One server connects to multiple chains simultaneously (relay, Collectives, Asset Hub). Tools automatically route to the right chain — the AI never needs to think about which RPC endpoint to use.
+One server manages all networks simultaneously with a shared connection pool. Connections are created lazily on first use and cached. Tools accept `network` (polkadot/kusama/westend/paseo) and `chain` (relay/asset-hub/bridge-hub/people/collectives/coretime) parameters.
 
 ```
 polkadot-mcp
-├── ChainPool          # Lazy-connected clients for relay, collectives, asset-hub
+├── PolkadotMcp        # Server: holds all networks + shared pool
+├── networks/          # Polkadot, Kusama, Westend, Paseo presets
+├── ChainPool          # Lazy-connected clients, cached by chain name
 ├── tools/
 │   ├── account.rs     # Balance, locks, transfers
 │   ├── fellowship.rs  # Rank, salary, demotion     → Collectives chain
 │   ├── governance.rs  # Referenda, voting           → Relay chain
 │   ├── staking.rs     # Staking, pools, rewards     → Relay chain
-│   └── chain.rs       # Generic queries             → Any chain
+│   └── chain.rs       # Chain info, generic queries  → Any chain
 └── backends/
     ├── subxt.rs       # Live chain state
     └── subscan.rs     # Historical/indexed data
@@ -106,10 +103,10 @@ polkadot-mcp
 cargo build                          # Build
 cargo test                           # Test
 cargo clippy -- -D warnings          # Lint
-POLKADOT_NETWORK=westend cargo run   # Run against testnet
+cargo run                            # Run (all networks available)
 
 # Debug with MCP Inspector
-npx @anthropic-ai/mcp-inspector cargo run
+npx @modelcontextprotocol/inspector cargo run
 ```
 
 ## License

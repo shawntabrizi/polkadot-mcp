@@ -2,9 +2,9 @@
 
 ## Overview
 
-`polkadot-mcp` is a Rust MCP (Model Context Protocol) server that lets any AI agent interact with Polkadot, Kusama, and other Substrate-based chains. It replaces browser-based UIs (Polkadot-JS Apps) with AI-native interfaces: the AI becomes the UI.
+`polkadot-mcp` is a Rust MCP (Model Context Protocol) server that lets any AI agent interact with Polkadot, Kusama, Westend, Paseo, and other Substrate-based chains. It replaces browser-based UIs (Polkadot-JS Apps) with AI-native interfaces: the AI becomes the UI.
 
-A single MCP server instance connects to multiple chains simultaneously (relay chain, Collectives, Asset Hub) and exposes high-level, intent-based tools that any MCP-compatible client (Claude, ChatGPT, Cursor, VS Code, custom agents) can use.
+A single MCP server instance has access to **all networks simultaneously** (Polkadot, Kusama, Westend, Paseo) — each with their relay chain and system parachains (Asset Hub, Bridge Hub, People, Collectives, Coretime). Tools accept `network` and `chain` parameters to route queries, so the AI can query any chain without restarting the server. The server exposes high-level, intent-based tools that any MCP-compatible client (Claude, ChatGPT, Cursor, VS Code, custom agents) can use.
 
 ## Tech Stack
 
@@ -13,7 +13,7 @@ A single MCP server instance connects to multiple chains simultaneously (relay c
 | Language | Rust (2021 edition) | Single binary, no runtime deps, same language as Polkadot SDK |
 | Chain client | `subxt` (dynamic mode) | No codegen needed, works with any Substrate chain at runtime |
 | Signing | `subxt-signer` | sr25519/ecdsa, BIP-39 phrases, `//Dev` URI derivation |
-| MCP SDK | `rmcp` | Official Rust MCP SDK from Anthropic. `#[tool]` macro, stdio transport |
+| MCP SDK | `rmcp` | Official Rust MCP SDK. `#[tool]`, `#[tool_router]`, `#[tool_handler]` macros, stdio transport |
 | Async | `tokio` | Required by both subxt and rmcp |
 | Serialization | `serde`, `serde_json` | Tool params and return values |
 | Schema | `schemars` | Auto-generates JSON Schema for MCP tool parameters |
@@ -33,7 +33,7 @@ polkadot-mcp/
 ├── README.md
 ├── src/
 │   ├── main.rs              # Entry point: parse env, build server, start stdio
-│   ├── server.rs            # PolkadotMcp struct, #[tool_box] impl
+│   ├── server.rs            # PolkadotMcp struct, #[tool_router] + #[tool_handler] impl
 │   ├── network.rs           # Network, ChainConfig, chain presets
 │   ├── pool.rs              # ChainPool: lazy connection manager
 │   ├── signer.rs            # Key management from env var / URI
@@ -54,36 +54,40 @@ polkadot-mcp/
     └── integration.rs        # Integration tests against Westend testnet
 ```
 
-### Multi-Chain Design
+### Multi-Network, Multi-Chain Design
 
-A single server instance manages a **Network** — a group of related chains (relay + system parachains). The server holds a **ChainPool** that lazily creates and caches one `OnlineClient<PolkadotConfig>` per chain.
+A single server instance manages **all networks simultaneously**. At startup, it creates a `HashMap<String, Network>` with entries for Polkadot, Kusama, Westend, and Paseo. Each **Network** is a group of related chains (relay + system parachains). A shared **ChainPool** lazily creates and caches one `OnlineClient<PolkadotConfig>` per chain across all networks.
 
 ```
-Network (e.g., Polkadot)
-├── relay:       wss://rpc.polkadot.io
-├── collectives: wss://polkadot-collectives-rpc.polkadot.io
-└── asset_hub:   wss://polkadot-asset-hub-rpc.polkadot.io
+PolkadotMcp
+├── networks["polkadot"]  → Network { relay, asset_hub, bridge_hub, people, collectives, coretime }
+├── networks["kusama"]    → Network { relay, asset_hub, bridge_hub, people, coretime }  (no collectives)
+├── networks["westend"]   → Network { relay, asset_hub, bridge_hub, people, collectives, coretime }
+├── networks["paseo"]     → Network { relay, asset_hub, bridge_hub, people, collectives, coretime }
+└── pool                  → ChainPool (shared, caches connections by chain name)
 ```
 
-**Tools own their chain routing.** Domain-specific tools hardcode which chain they query. The AI never thinks about which RPC endpoint to hit.
+**Tools accept `network` and `chain` parameters** to route queries. The server resolves `(network, chain)` → `ChainConfig` → cached connection.
 
-| Tool | Chain(s) | Routing |
-|---|---|---|
-| `fellowship_status` | Collectives | Hardcoded: `self.pool.collectives()` |
-| `referenda_active` | Relay | Hardcoded: `self.pool.relay()` |
-| `account_info` | Relay (default) | Param override: `chain: "asset-hub"` |
-| `total_balance` | Relay + Asset Hub | Parallel fan-out via `tokio::try_join!` |
-| `query_storage` | Any | Explicit `chain` parameter required |
+| Tool | Default network | Default chain | Routing |
+|---|---|---|---|
+| `chain_info` | polkadot | relay | `server.resolve(&network, &chain)` |
+| `get_balances` | polkadot | relay | `server.resolve(&network, &chain)` |
+| `fellowship_status` | polkadot | collectives | Hardcoded chain, network param |
+| `referenda_active` | polkadot | relay | Hardcoded chain, network param |
+| `query_storage` | polkadot | (required) | Both params explicit |
 
 Each `ChainConfig` carries metadata (token symbol, decimals, SS58 prefix) so tools format output correctly regardless of network.
 
+Note: Kusama does not have a Collectives chain, so `collectives` is `Option<ChainConfig>`.
+
 ### Connection Lifecycle
 
-1. Server starts → creates `ChainPool` with `Network` config (endpoints only, no connections yet)
-2. First tool call touching relay → `pool.relay()` opens WebSocket, downloads metadata (~200KB–1MB), caches client
-3. First tool call touching collectives → same lazy init
-4. Subsequent calls → reuse cached `OnlineClient` (cheap clone via `Arc` internally)
-5. Connection drops → `unstable-reconnecting-rpc-client` feature handles automatic reconnect
+1. Server starts → creates all 4 `Network` presets + empty shared `ChainPool` (no connections yet)
+2. First tool call for e.g. Polkadot relay → `pool.get(&config)` opens WebSocket, downloads metadata (~200KB–1MB), caches client by chain name
+3. First tool call for e.g. Kusama asset-hub → same lazy init, separate cached client
+4. Subsequent calls to the same chain → reuse cached `OnlineClient` (cheap clone via `Arc` internally)
+5. Connections are cached across all networks in the same pool
 
 ### Backend Strategy
 
@@ -220,8 +224,8 @@ The `backends/` module abstracts this. Tools call backend functions, not raw sub
 ### Chain Utilities
 
 #### `chain_info`
-- **Params:** `chain: Option<String>` (default: relay)
-- **Returns:** Chain name, runtime version, current block, current era, epoch, token info.
+- **Params:** `network: String` (default: "polkadot"), `chain: String` (default: "relay")
+- **Returns:** Chain name, type (Relay Chain / System Parachain), network, token symbol + decimals, SS58 prefix, current block, spec version, transaction version.
 - **Backend:** subxt
 
 #### `block_info`
@@ -298,12 +302,10 @@ The `backends/` module abstracts this. Tools call backend functions, not raw sub
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `POLKADOT_NETWORK` | No | `polkadot` | Network preset: `polkadot`, `kusama`, `westend` |
-| `POLKADOT_RELAY_URL` | No | (from preset) | Override relay chain RPC endpoint |
-| `POLKADOT_COLLECTIVES_URL` | No | (from preset) | Override Collectives RPC endpoint |
-| `POLKADOT_ASSET_HUB_URL` | No | (from preset) | Override Asset Hub RPC endpoint |
 | `POLKADOT_SIGNER_URI` | No | (none, read-only) | Signer key URI. e.g. `//Alice` or mnemonic phrase |
 | `SUBSCAN_API_KEY` | No | (none) | Subscan API key for historical data queries |
+
+All networks (Polkadot, Kusama, Westend, Paseo) are available simultaneously — no `POLKADOT_NETWORK` env var needed. Tools accept a `network` parameter to select which network to query.
 
 ### MCP Client Configuration
 
@@ -313,7 +315,6 @@ The `backends/` module abstracts this. Tools call backend functions, not raw sub
     "polkadot": {
       "command": "polkadot-mcp",
       "env": {
-        "POLKADOT_NETWORK": "polkadot",
         "POLKADOT_SIGNER_URI": "bottom drive obey lake curtain smoke basket hold race lonely fit walk//polkadot"
       }
     }
@@ -372,21 +373,41 @@ Read-only (no signer, no transaction tools):
 | Chain | Endpoint | Token | Decimals | SS58 |
 |---|---|---|---|---|
 | Relay | `wss://rpc.polkadot.io` | DOT | 10 | 0 |
-| Collectives | `wss://polkadot-collectives-rpc.polkadot.io` | DOT | 10 | 0 |
 | Asset Hub | `wss://polkadot-asset-hub-rpc.polkadot.io` | DOT | 10 | 0 |
+| Bridge Hub | `wss://polkadot-bridge-hub-rpc.polkadot.io` | DOT | 10 | 0 |
+| People | `wss://polkadot-people-rpc.polkadot.io` | DOT | 10 | 0 |
+| Collectives | `wss://polkadot-collectives-rpc.polkadot.io` | DOT | 10 | 0 |
+| Coretime | `wss://polkadot-coretime-rpc.polkadot.io` | DOT | 10 | 0 |
 
 ### Kusama
 
 | Chain | Endpoint | Token | Decimals | SS58 |
 |---|---|---|---|---|
 | Relay | `wss://kusama-rpc.polkadot.io` | KSM | 12 | 2 |
-| Collectives | `wss://kusama-collectives-rpc.polkadot.io` | KSM | 12 | 2 |
 | Asset Hub | `wss://kusama-asset-hub-rpc.polkadot.io` | KSM | 12 | 2 |
+| Bridge Hub | `wss://kusama-bridge-hub-rpc.polkadot.io` | KSM | 12 | 2 |
+| People | `wss://kusama-people-rpc.polkadot.io` | KSM | 12 | 2 |
+| Collectives | *(none)* | — | — | — |
+| Coretime | `wss://kusama-coretime-rpc.polkadot.io` | KSM | 12 | 2 |
 
 ### Westend (testnet)
 
 | Chain | Endpoint | Token | Decimals | SS58 |
 |---|---|---|---|---|
 | Relay | `wss://westend-rpc.polkadot.io` | WND | 12 | 42 |
-| Collectives | `wss://westend-collectives-rpc.polkadot.io` | WND | 12 | 42 |
 | Asset Hub | `wss://westend-asset-hub-rpc.polkadot.io` | WND | 12 | 42 |
+| Bridge Hub | `wss://westend-bridge-hub-rpc.polkadot.io` | WND | 12 | 42 |
+| People | `wss://westend-people-rpc.polkadot.io` | WND | 12 | 42 |
+| Collectives | `wss://westend-collectives-rpc.polkadot.io` | WND | 12 | 42 |
+| Coretime | `wss://westend-coretime-rpc.polkadot.io` | WND | 12 | 42 |
+
+### Paseo (testnet)
+
+| Chain | Endpoint | Token | Decimals | SS58 |
+|---|---|---|---|---|
+| Relay | `wss://paseo.ibp.network` | PAS | 10 | 42 |
+| Asset Hub | `wss://asset-hub-paseo.ibp.network` | PAS | 10 | 42 |
+| Bridge Hub | `wss://bridge-hub-paseo.ibp.network` | PAS | 10 | 42 |
+| People | `wss://people-paseo.ibp.network` | PAS | 10 | 42 |
+| Collectives | `wss://collectives-paseo.ibp.network` | PAS | 10 | 42 |
+| Coretime | `wss://coretime-paseo.ibp.network` | PAS | 10 | 42 |

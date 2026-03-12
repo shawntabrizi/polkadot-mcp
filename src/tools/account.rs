@@ -13,9 +13,16 @@ use crate::types::{error_result, format_balance, parse_ss58, text_result};
 pub struct GetBalancesParams {
     /// SS58 address to query (e.g. "15oF4uVJwmo4TdGW7VfQxNLavjCXviqWrztPu9T1PLww5M9Q").
     pub address: String,
-    /// Which chain to query: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', or 'coretime'.
+    /// Network to query: 'polkadot' (default), 'kusama', 'westend', or 'paseo'.
+    #[serde(default = "default_network")]
+    pub network: String,
+    /// Chain within the network: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', or 'coretime'.
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+fn default_network() -> String {
+    "polkadot".to_string()
 }
 
 fn default_chain() -> String {
@@ -31,17 +38,17 @@ pub async fn get_balances(
         Err(e) => return Ok(error_result(&format!("Invalid address: {}", e))),
     };
 
-    let (chain_name, config) = match server.pool.network.resolve_chain(&params.chain) {
-        Ok((name, config)) => (name.to_string(), config.clone()),
+    let config = match server.resolve(&params.network, &params.chain) {
+        Ok(config) => config,
         Err(e) => return Ok(error_result(&e.to_string())),
     };
 
-    let api = match server.pool.get(&chain_name).await {
+    let api = match server.pool.get(&config).await {
         Ok(api) => api,
         Err(e) => {
             return Ok(error_result(&format!(
                 "Failed to connect to {}: {}",
-                chain_name, e
+                config.name, e
             )));
         }
     };
@@ -58,7 +65,7 @@ pub async fn get_balances(
     let Some(account_data) = result else {
         return Ok(text_result(&format!(
             "Account {} not found on {}. The account may not exist or has no balance.",
-            params.address, chain_name
+            params.address, config.name
         )));
     };
 
@@ -79,7 +86,7 @@ pub async fn get_balances(
 
     let mut output = String::new();
     output.push_str(&format!("Account: {}\n", params.address));
-    output.push_str(&format!("Chain: {}\n", chain_name));
+    output.push_str(&format!("Chain: {}\n", config.name));
     output.push_str(&format!("Nonce: {}\n", nonce));
     output.push_str(&format!("\nBalances:\n"));
     output.push_str(&format!("  Total:        {}\n", format_balance(total, dec, sym)));
