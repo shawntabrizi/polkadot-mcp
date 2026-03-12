@@ -11,6 +11,9 @@ mod signer;
 mod tools;
 mod types;
 
+#[cfg(test)]
+mod integration_tests;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // CRITICAL: Log to stderr only. stdout is the MCP stdio transport.
