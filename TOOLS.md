@@ -16,11 +16,34 @@ General-purpose tools for querying any chain.
 | `block_info` | planned | any | Block details: number, hash, parent, timestamp, extrinsics count, decoded events |
 | `extrinsic_info` | planned | any | Look up a specific extrinsic by hash or by block number + index. Shows decoded call, signer, fee, success/failure, events emitted. Answers: "did my transaction go through?" |
 | `fee_estimate` | planned | any | Estimate the fee for a given call without submitting. Uses `payment_queryInfo` or dry-run. Answers: "how much will this cost?" |
+| `dry_run` | planned | any | Simulate a call against current state and return the execution result + events without submitting. Answers: "what would happen if I did X?" Shows success/failure, dispatch error details, and all events that would be emitted |
+| `encode_call` | planned | any | Build hex-encoded call data from pallet + method + params. Inverse of `decode_call`. Needed for constructing multisig proposals, proxy calls, governance preimages, and batch payloads |
 | `scheduled_actions` | planned | any | List pending scheduled dispatches: governance enactments, runtime upgrades, etc. Queries `Scheduler.Agenda` and `Scheduler.Lookup` |
+| `remark` | planned [write] | any | Store arbitrary data on-chain via `System.remark_with_event`. Used for signaling, attestation, and data anchoring |
 
 ---
 
-## 2. Runtime Metadata Introspection
+## 2. Address Utilities
+
+Offline tools for working with SS58 addresses. No chain connection needed.
+
+| Tool | Status | Chain | Description |
+|---|---|---|---|
+| `ss58_decode` | planned | none | Decode an SS58 address into its raw public key (hex) and SS58 prefix. Answers: "what prefix/network is this address for?" |
+| `ss58_encode` | planned | none | Encode a raw public key (hex) into an SS58 address with a given prefix. Answers: "what's this account's address on Kusama?" |
+| `ss58_convert` | planned | none | Convert an SS58 address from one prefix to another. Answers: "is this the same account on Polkadot and Kusama?" Shows the address in both formats |
+| `ss58_validate` | planned | none | Validate an SS58 address: check encoding, extract prefix, identify the network it belongs to |
+
+### SS58 prefix reference
+| Prefix | Network |
+|---|---|
+| 0 | Polkadot |
+| 2 | Kusama |
+| 42 | Generic Substrate / Westend / Paseo |
+
+---
+
+## 3. Runtime Metadata Introspection
 
 These tools parse the on-chain metadata that every Substrate chain exposes. The metadata describes the entire runtime: every pallet, extrinsic, storage item, event, error, and constant — with types and documentation. This is the AI's "map" of what a chain can do.
 
@@ -66,7 +89,7 @@ All metadata is available through `api.metadata()` after connecting via subxt. K
 
 ---
 
-## 3. Account & Balance
+## 4. Account & Balance
 
 Core account queries. Work on **any chain** (relay or parachain).
 
@@ -90,7 +113,7 @@ Core account queries. Work on **any chain** (relay or parachain).
 
 ---
 
-## 4. Staking (Relay Chain)
+## 5. Staking (Relay Chain)
 
 Direct staking (nominating validators) and nomination pools.
 
@@ -134,7 +157,7 @@ Direct staking (nominating validators) and nomination pools.
 
 ---
 
-## 5. Governance — OpenGov (Relay Chain)
+## 6. Governance — OpenGov (Relay Chain)
 
 Referendum lifecycle, conviction voting, and delegation.
 
@@ -194,7 +217,7 @@ Referendum lifecycle, conviction voting, and delegation.
 
 ---
 
-## 6. Treasury (Relay Chain)
+## 7. Treasury (Relay Chain)
 
 Treasury spend tracking. Most treasury actions happen via governance referenda, but these tools help users understand current treasury state.
 
@@ -216,7 +239,7 @@ Treasury spend tracking. Most treasury actions happen via governance referenda, 
 
 ---
 
-## 7. Fellowship (Collectives Chain)
+## 8. Fellowship (Collectives Chain)
 
 Polkadot Technical Fellowship: rank, salary, demotion, evidence. Queries the **Collectives parachain** (not available on Kusama).
 
@@ -245,7 +268,7 @@ Polkadot Technical Fellowship: rank, salary, demotion, evidence. Queries the **C
 
 ---
 
-## 8. Identity (People Chain)
+## 9. Identity (People Chain)
 
 On-chain identity management. Lives on the **People parachain**.
 
@@ -271,7 +294,7 @@ On-chain identity management. Lives on the **People parachain**.
 
 ---
 
-## 9. Proxy (Any Chain)
+## 10. Proxy (Any Chain)
 
 Proxy account management. Available on relay and parachains.
 
@@ -292,7 +315,7 @@ Proxy account management. Available on relay and parachains.
 
 ---
 
-## 10. Multisig (Any Chain)
+## 11. Multisig (Any Chain)
 
 Multi-signature operations.
 
@@ -309,7 +332,7 @@ Multi-signature operations.
 
 ---
 
-## 11. Assets & NFTs (Asset Hub)
+## 12. Assets & NFTs (Asset Hub)
 
 Fungible assets, foreign assets, and NFTs on Asset Hub.
 
@@ -365,7 +388,7 @@ Non-fungible tokens via the `Nfts` pallet on Asset Hub.
 
 ---
 
-## 12. Cross-Chain Transfers (XCM)
+## 13. Cross-Chain Transfers (XCM)
 
 Teleport or reserve-transfer assets between chains. Primarily between relay and Asset Hub.
 
@@ -384,7 +407,7 @@ Teleport or reserve-transfer assets between chains. Primarily between relay and 
 
 ---
 
-## 13. Parachains (Relay Chain)
+## 14. Parachains (Relay Chain)
 
 Information about registered parachains and their status.
 
@@ -405,7 +428,7 @@ Information about registered parachains and their status.
 
 ---
 
-## 14. Coretime (Coretime Chain)
+## 15. Coretime (Coretime Chain)
 
 Coretime (blockspace) purchases and management for parachains.
 
@@ -427,7 +450,48 @@ Coretime (blockspace) purchases and management for parachains.
 
 ---
 
-## 15. Utility / Batch
+## 16. Asset Conversion (Asset Hub DEX)
+
+On-chain DEX on Asset Hub via the `AssetConversion` pallet. Enables swaps between native token and registered assets.
+
+| Tool | Status | Chain | Description |
+|---|---|---|---|
+| `swap_pools` | planned | asset-hub | List liquidity pools with reserves and trading pairs. Answers: "what can I swap DOT for on Asset Hub?" |
+| `swap_quote` | planned | asset-hub | Get a quote for swapping amount of asset A → asset B. Shows expected output and price impact |
+| `swap` | planned [write] | asset-hub | Execute a swap. Builds `AssetConversion.swap_exact_tokens_for_tokens()` or `swap_tokens_for_exact_tokens()`. Dry-runs first |
+
+### Storage reference
+| Pallet | Entry | Key | Returns |
+|---|---|---|---|
+| `AssetConversion` | `Pools` | (Asset1, Asset2) | `{ lp_token }` |
+| `AssetConversion` | `NextPoolAssetId` | — | AssetId |
+
+---
+
+## 17. Staking Economics (Relay Chain)
+
+Network-level staking statistics and economics.
+
+| Tool | Status | Chain | Description |
+|---|---|---|---|
+| `era_info` | planned | relay | Current era, session index, session progress, time until next era, era duration. Essential context for staking |
+| `staking_rate` | planned | relay | Total staked vs total issuance, ideal staking rate, current inflation rate, validator count |
+| `track_info` | planned | relay | Governance track parameters: decision period, confirmation period, min approval curve, min support curve, max deciding. Differs per network |
+
+### Storage reference
+| Pallet | Entry | Key | Returns |
+|---|---|---|---|
+| `Staking` | `CurrentEra` | — | EraIndex |
+| `Staking` | `ActiveEra` | — | `{ index, start }` |
+| `Staking` | `ErasTotalStake` | EraIndex | Balance |
+| `Staking` | `CounterForValidators` | — | u32 |
+| `Staking` | `CounterForNominators` | — | u32 |
+| `Session` | `CurrentIndex` | — | SessionIndex |
+| `Balances` | `TotalIssuance` | — | Balance |
+
+---
+
+## 18. Utility / Batch
 
 Combine multiple calls into one transaction. Used internally by other tools but also exposed directly.
 
@@ -444,18 +508,19 @@ Based on what users ask most about and what provides the most value:
 ### Phase 1 — Foundation + Metadata (current)
 - `chain_info` ✅
 - `get_balances` ✅
+- **Address utilities** — offline, no chain needed: `ss58_decode`, `ss58_encode`, `ss58_convert`, `ss58_validate`
 - **Metadata introspection** — high-leverage, lets the agent self-serve on any chain:
   - `list_pallets`, `pallet_info`
   - `list_calls`, `call_info`
   - `list_storage`, `storage_info`
   - `list_constants`, `constant_value`
   - `list_events`, `list_errors`
-- `query_storage`, `decode_call`
-- `extrinsic_info`, `fee_estimate`
+- `query_storage`, `decode_call`, `encode_call`
+- `extrinsic_info`, `fee_estimate`, `dry_run`
 
 ### Phase 2 — Read-heavy user flows
-- `staking_status`, `nomination_pools`, `pool_info`, `validator_detail`
-- `referenda_active`, `referendum_detail`, `my_votes`, `preimage_info`
+- `staking_status`, `nomination_pools`, `pool_info`, `validator_detail`, `era_info`
+- `referenda_active`, `referendum_detail`, `my_votes`, `preimage_info`, `track_info`
 - `fellowship_status`, `fellowship_members`
 - `identity_of`
 - `account_locks`, `vesting_info`
@@ -464,9 +529,11 @@ Based on what users ask most about and what provides the most value:
 
 ### Phase 3 — More reads + indexer integration
 - `staking_rewards`, `account_transfers` (Subscan)
+- `staking_rate`
 - `treasury_info`, `treasury_spends`, `bounties_list`
 - `assets_list`, `asset_balance`, `foreign_assets_list`, `foreign_asset_balance`
 - `nft_collections`, `nft_items`, `nfts_owned`
+- `swap_pools`, `swap_quote`
 - `coretime_status`, `coretime_regions`
 - `parachains_list`, `parachain_info`
 - `pools_list`, `validators_info`
@@ -476,12 +543,13 @@ Based on what users ask most about and what provides the most value:
 
 ### Phase 4 — Write transactions
 - `vote` (Standard + Split + SplitAbstain), `delegate`, `undelegate`, `unlock_votes`
-- `transfer`, `vest`
+- `transfer`, `vest`, `remark`
 - `bond`, `nominate`, `unbond`, `chill`, `claim_staking_rewards`
 - `pool_join`, `pool_claim_payout`, `pool_unbond`, `pool_create`
 - `fellowship_claim_salary`
 - `set_identity`, `request_judgement`
 - `xcm_transfer`
+- `swap`
 - `batch_calls`
 
 ### Phase 5 — Advanced
