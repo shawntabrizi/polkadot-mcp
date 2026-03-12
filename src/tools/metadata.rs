@@ -3,6 +3,7 @@ use rmcp::model::CallToolResult;
 use rmcp::schemars::{self, JsonSchema};
 use serde::Deserialize;
 
+use crate::decode;
 use crate::server::PolkadotMcp;
 use crate::types::{error_result, text_result};
 
@@ -215,6 +216,77 @@ pub async fn pallet_info(
             output.push_str(&format!("  {}\n", constant.name()));
         }
     }
+
+    Ok(text_result(&output))
+}
+
+// ---------------------------------------------------------------------------
+// constant_value
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ConstantValueParams {
+    /// Pallet name (e.g. "Balances", "Staking").
+    pub pallet_name: String,
+    /// Constant name (e.g. "ExistentialDeposit", "BondingDuration").
+    pub constant_name: String,
+    /// Network to query: 'polkadot' (default), 'kusama', 'westend', or 'paseo'.
+    #[serde(default = "default_network")]
+    pub network: String,
+    /// Chain within the network: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', or 'coretime'.
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+pub async fn constant_value(
+    server: &PolkadotMcp,
+    params: ConstantValueParams,
+) -> Result<CallToolResult> {
+    let config = match server.resolve(&params.network, &params.chain) {
+        Ok(c) => c,
+        Err(e) => return Ok(error_result(&e.to_string())),
+    };
+
+    let api = match server.pool.get(&config).await {
+        Ok(a) => a,
+        Err(e) => {
+            return Ok(error_result(&format!(
+                "Failed to connect to {}: {}",
+                config.name, e
+            )));
+        }
+    };
+
+    // Use subxt dynamic constant query
+    let addr = subxt::dynamic::constant(&params.pallet_name, &params.constant_name);
+    let value = match api.constants().at(&addr) {
+        Ok(v) => v,
+        Err(e) => {
+            return Ok(error_result(&format!(
+                "Constant '{}.{}' not found on {}: {}",
+                params.pallet_name, params.constant_name, config.name, e
+            )));
+        }
+    };
+
+    let decoded = value.to_value()?;
+
+    // Get type info for display
+    let metadata = api.metadata();
+    let type_name = metadata
+        .pallet_by_name(&params.pallet_name)
+        .and_then(|p| p.constant_by_name(&params.constant_name))
+        .map(|c| decode::type_to_string(c.ty(), metadata.types()))
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let mut output = String::new();
+    output.push_str(&format!(
+        "Constant: {}.{}\n",
+        params.pallet_name, params.constant_name
+    ));
+    output.push_str(&format!("Chain: {}\n", config.name));
+    output.push_str(&format!("Type: {}\n", type_name));
+    output.push_str(&format!("Value: {}", decode::format_value(&decoded)));
 
     Ok(text_result(&output))
 }

@@ -60,7 +60,7 @@ The `subxt` client already downloads metadata on first connection (~200KB–1MB)
 | `list_events` | planned | any | List all events for a pallet with field names and descriptions. Answers: "what events does Balances emit?" |
 | `list_errors` | planned | any | List all errors for a pallet with descriptions. Answers: "what errors can `ConvictionVoting.vote` return?" |
 | `list_constants` | planned | any | List all runtime constants for a pallet with values and descriptions. Answers: "what are the configuration parameters for staking?" |
-| `constant_value` | planned | any | Get the decoded value of a specific runtime constant. Answers: "what is the existential deposit?" / "how long is the unbonding period?" |
+| `constant_value` | implemented | any | Get the decoded value of a specific runtime constant. Answers: "what is the existential deposit?" / "how long is the unbonding period?" |
 | `query_storage` | planned | any | Read any storage item by pallet + entry name + keys. Supports optional `at_block` parameter for historical state. Raw decoded value output. Escape hatch for anything not covered by a dedicated tool |
 | `decode_call` | planned | any | Decode a hex-encoded call/extrinsic into human-readable pallet + method + args using chain metadata |
 | `type_info` | planned | any | Describe a type by ID from the metadata type registry. Useful for understanding complex nested types returned by other tools |
@@ -96,7 +96,7 @@ Core account queries. Work on **any chain** (relay or parachain).
 | Tool | Status | Chain | Description |
 |---|---|---|---|
 | `get_balances` | implemented | any | Free, reserved, frozen, transferable balance for an SS58 address |
-| `account_locks` | planned | any | All locks, freezes, and holds with reasons and amounts. Combines `Balances.Locks`, `Balances.Freezes`, `Balances.Holds` |
+| `account_locks` | implemented | any | All locks, freezes, and holds with reasons and amounts. Combines `Balances.Locks`, `Balances.Freezes`, `Balances.Holds` |
 | `account_transfers` | planned [indexer] | any | Recent transfer history (inbound/outbound) with timestamps, counterparty, amount |
 | `transfer` | planned [write] | any | Transfer native token. Builds `Balances.transfer_keep_alive` or `transfer_allow_death`. Dry-runs first |
 | `vesting_info` | planned | relay | Vesting schedules: locked amount, per-block release, already vested. Queries `Vesting.Vesting[account]` |

@@ -3,9 +3,10 @@ use rmcp::model::CallToolResult;
 use rmcp::schemars::{self, JsonSchema};
 use serde::Deserialize;
 use subxt::dynamic::At;
+use subxt::ext::scale_value::{Composite, ValueDef};
 
 use crate::backends::subxt_backend;
-use crate::decode::value_as_u128;
+use crate::decode::{self, value_as_u128};
 use crate::server::PolkadotMcp;
 use crate::types::{error_result, format_balance, parse_ss58, text_result};
 
@@ -96,4 +97,165 @@ pub async fn get_balances(
     output.push_str(&format!("  Transferable: {}", format_balance(transferable, dec, sym)));
 
     Ok(text_result(&output))
+}
+
+// ---------------------------------------------------------------------------
+// account_locks
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AccountLocksParams {
+    /// SS58 address to query.
+    pub address: String,
+    /// Network to query: 'polkadot' (default), 'kusama', 'westend', or 'paseo'.
+    #[serde(default = "default_network")]
+    pub network: String,
+    /// Chain within the network: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', or 'coretime'.
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+pub async fn account_locks(
+    server: &PolkadotMcp,
+    params: AccountLocksParams,
+) -> Result<CallToolResult> {
+    let account_id = match parse_ss58(&params.address) {
+        Ok(id) => id,
+        Err(e) => return Ok(error_result(&format!("Invalid address: {}", e))),
+    };
+
+    let config = match server.resolve(&params.network, &params.chain) {
+        Ok(c) => c,
+        Err(e) => return Ok(error_result(&e.to_string())),
+    };
+
+    let api = match server.pool.get(&config).await {
+        Ok(a) => a,
+        Err(e) => {
+            return Ok(error_result(&format!(
+                "Failed to connect to {}: {}",
+                config.name, e
+            )));
+        }
+    };
+
+    let sym = &config.token_symbol;
+    let dec = config.token_decimals;
+
+    let mut output = String::new();
+    output.push_str(&format!("Account: {}\n", params.address));
+    output.push_str(&format!("Chain: {}\n", config.name));
+
+    // Fetch Locks
+    let locks = subxt_backend::fetch_storage(
+        &api,
+        "Balances",
+        "Locks",
+        vec![subxt_backend::account_value(&account_id)],
+    )
+    .await?;
+
+    if let Some(locks_value) = locks {
+        let items = extract_vec_items(&locks_value);
+        if items.is_empty() {
+            output.push_str("\nLocks: none\n");
+        } else {
+            output.push_str(&format!("\nLocks ({}):\n", items.len()));
+            for item in &items {
+                let id = item
+                    .at("id")
+                    .map(decode::decode_lock_id)
+                    .unwrap_or_else(|| "?".to_string());
+                let amount = item.at("amount").map(value_as_u128).unwrap_or(0);
+                let reasons = item
+                    .at("reasons")
+                    .map(decode::format_value)
+                    .unwrap_or_else(|| "?".to_string());
+                output.push_str(&format!(
+                    "  {} — {} ({})\n",
+                    id,
+                    format_balance(amount, dec, sym),
+                    reasons
+                ));
+            }
+        }
+    } else {
+        output.push_str("\nLocks: none\n");
+    }
+
+    // Fetch Freezes
+    let freezes = subxt_backend::fetch_storage(
+        &api,
+        "Balances",
+        "Freezes",
+        vec![subxt_backend::account_value(&account_id)],
+    )
+    .await?;
+
+    if let Some(freezes_value) = freezes {
+        let items = extract_vec_items(&freezes_value);
+        if items.is_empty() {
+            output.push_str("\nFreezes: none\n");
+        } else {
+            output.push_str(&format!("\nFreezes ({}):\n", items.len()));
+            for item in &items {
+                let id = item
+                    .at("id")
+                    .map(decode::format_value)
+                    .unwrap_or_else(|| "?".to_string());
+                let amount = item.at("amount").map(value_as_u128).unwrap_or(0);
+                output.push_str(&format!(
+                    "  {} — {}\n",
+                    id,
+                    format_balance(amount, dec, sym)
+                ));
+            }
+        }
+    } else {
+        output.push_str("\nFreezes: none\n");
+    }
+
+    // Fetch Holds
+    let holds = subxt_backend::fetch_storage(
+        &api,
+        "Balances",
+        "Holds",
+        vec![subxt_backend::account_value(&account_id)],
+    )
+    .await?;
+
+    if let Some(holds_value) = holds {
+        let items = extract_vec_items(&holds_value);
+        if items.is_empty() {
+            output.push_str("\nHolds: none");
+        } else {
+            output.push_str(&format!("\nHolds ({}):\n", items.len()));
+            for item in &items {
+                let id = item
+                    .at("id")
+                    .map(decode::format_value)
+                    .unwrap_or_else(|| "?".to_string());
+                let amount = item.at("amount").map(value_as_u128).unwrap_or(0);
+                output.push_str(&format!(
+                    "  {} — {}\n",
+                    id,
+                    format_balance(amount, dec, sym)
+                ));
+            }
+        }
+    } else {
+        output.push_str("\nHolds: none");
+    }
+
+    Ok(text_result(&output))
+}
+
+/// Extract items from a Vec-like dynamic value (Composite::Unnamed).
+fn extract_vec_items(
+    value: &subxt::dynamic::DecodedValue,
+) -> Vec<&subxt::dynamic::DecodedValue> {
+    match &value.value {
+        ValueDef::Composite(Composite::Unnamed(items)) => items.iter().collect(),
+        _ => vec![],
+    }
 }

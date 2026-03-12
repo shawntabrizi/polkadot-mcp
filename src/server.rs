@@ -123,6 +123,35 @@ impl PolkadotMcp {
             .await
             .map_err(|e| ErrorData::internal_error(e.to_string(), None))
     }
+
+    #[tool(description = "Get the decoded value of a specific runtime constant. \
+        Answers: 'what is the existential deposit?', 'how long is the unbonding period?', \
+        'what is the max number of nominators?' \
+        Use 'network' param for: 'polkadot' (default), 'kusama', 'westend', 'paseo'. \
+        Use 'chain' param for: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', 'coretime'.")]
+    async fn constant_value(
+        &self,
+        Parameters(params): Parameters<metadata::ConstantValueParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        metadata::constant_value(self, params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    // --- Account ---
+
+    #[tool(description = "Get all locks, freezes, and holds on an account with reasons and amounts. \
+        Shows what is locking your tokens (staking, governance, vesting, etc.). \
+        Use 'network' param for: 'polkadot' (default), 'kusama', 'westend', 'paseo'. \
+        Use 'chain' param for: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', 'coretime'.")]
+    async fn account_locks(
+        &self,
+        Parameters(params): Parameters<account::AccountLocksParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        account::account_locks(self, params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
 }
 
 impl PolkadotMcp {
