@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "MCP server for AI-native interaction with Polkadot, Kusama, and Substrate chains"
 license = "Apache-2.0"
-repository = "https://github.com/polkadot-mcp/polkadot-mcp"
+repository = "https://github.com/shawntabrizi/polkadot-mcp"
 keywords = ["polkadot", "substrate", "mcp", "ai", "blockchain"]
 categories = ["api-bindings", "command-line-utilities"]
 
