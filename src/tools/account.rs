@@ -88,7 +88,7 @@ pub async fn get_balances(
     output.push_str(&format!("Account: {}\n", params.address));
     output.push_str(&format!("Chain: {}\n", config.name));
     output.push_str(&format!("Nonce: {}\n", nonce));
-    output.push_str(&format!("\nBalances:\n"));
+    output.push_str("\nBalances:\n");
     output.push_str(&format!("  Total:        {}\n", format_balance(total, dec, sym)));
     output.push_str(&format!("  Free:         {}\n", format_balance(free, dec, sym)));
     output.push_str(&format!("  Reserved:     {}\n", format_balance(reserved, dec, sym)));

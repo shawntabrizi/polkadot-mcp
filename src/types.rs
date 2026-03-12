@@ -29,6 +29,7 @@ pub fn format_balance(planck: u128, decimals: u8, symbol: &str) -> String {
 }
 
 /// Format a balance using a ChainConfig for decimals and symbol.
+#[allow(dead_code)]
 pub fn format_chain_balance(planck: u128, config: &ChainConfig) -> String {
     format_balance(planck, config.token_decimals, &config.token_symbol)
 }
@@ -51,7 +52,7 @@ pub fn parse_ss58(address: &str) -> Result<[u8; 32]> {
     // SS58 format: [prefix(1-2 bytes)] [account(32 bytes)] [checksum(2 bytes)]
     // Simple prefix (0-63): 1 byte
     // Full prefix (64-16383): 2 bytes
-    let prefix_len = if decoded.first().map_or(false, |&b| b < 64) {
+    let prefix_len = if decoded.first().is_some_and(|&b| b < 64) {
         1
     } else {
         2
@@ -88,6 +89,7 @@ pub fn error_result(text: &str) -> CallToolResult {
 
 /// Format a block number as approximate wall-clock time.
 /// Assumes 6-second block times (standard for Polkadot/Kusama).
+#[allow(dead_code)]
 pub fn blocks_to_duration(blocks: u64) -> String {
     let seconds = blocks * 6;
     if seconds < 60 {

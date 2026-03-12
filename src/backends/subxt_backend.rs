@@ -1,7 +1,8 @@
-/// subxt backend: live on-chain state queries via subxt dynamic mode.
-///
-/// This module provides helper functions for common subxt query patterns.
-/// Tools call these instead of constructing raw dynamic queries.
+#![allow(dead_code)]
+//! subxt backend: live on-chain state queries via subxt dynamic mode.
+//!
+//! This module provides helper functions for common subxt query patterns.
+//! Tools call these instead of constructing raw dynamic queries.
 
 use anyhow::Result;
 use subxt::dynamic::Value;
@@ -51,4 +52,30 @@ pub async fn pallet_exists(api: &OnlineClient<PolkadotConfig>, pallet_name: &str
     api.metadata()
         .pallet_by_name(pallet_name)
         .is_some()
+}
+
+/// Iterate all entries of a storage map. Returns decoded values.
+/// Use `partial_keys` to iterate a subset (e.g. all stakers in an era).
+/// Pass empty vec to iterate all entries.
+/// Limited to `limit` entries (default 1000) to prevent OOM on large maps.
+pub async fn fetch_storage_iter(
+    api: &OnlineClient<PolkadotConfig>,
+    pallet: &str,
+    entry: &str,
+    partial_keys: Vec<Value>,
+    limit: Option<usize>,
+) -> Result<Vec<subxt::dynamic::DecodedValue>> {
+    let addr = subxt::dynamic::storage(pallet, entry, partial_keys);
+    let storage = api.storage().at_latest().await?;
+    let mut iter = storage.iter(addr).await?;
+    let mut results = Vec::new();
+    let max = limit.unwrap_or(1000);
+    while let Some(kv) = iter.next().await {
+        let kv = kv?;
+        results.push(kv.value.to_value()?);
+        if results.len() >= max {
+            break;
+        }
+    }
+    Ok(results)
 }

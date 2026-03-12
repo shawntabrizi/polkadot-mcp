@@ -1,11 +1,12 @@
-/// Subscan backend: indexed/historical data via Subscan REST API.
-///
-/// Used for data that isn't efficiently queryable from runtime storage:
-///   - Transaction/transfer history
-///   - Historical staking rewards
-///   - Extrinsic search
-///
-/// API docs: https://support.subscan.io/
+#![allow(dead_code)]
+//! Subscan backend: indexed/historical data via Subscan REST API.
+//!
+//! Used for data that isn't efficiently queryable from runtime storage:
+//! - Transaction/transfer history
+//! - Historical staking rewards
+//! - Extrinsic search
+//!
+//! API docs: <https://support.subscan.io/>
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

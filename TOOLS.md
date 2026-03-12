@@ -29,10 +29,10 @@ Offline tools for working with SS58 addresses. No chain connection needed.
 
 | Tool | Status | Chain | Description |
 |---|---|---|---|
-| `ss58_decode` | planned | none | Decode an SS58 address into its raw public key (hex) and SS58 prefix. Answers: "what prefix/network is this address for?" |
-| `ss58_encode` | planned | none | Encode a raw public key (hex) into an SS58 address with a given prefix. Answers: "what's this account's address on Kusama?" |
-| `ss58_convert` | planned | none | Convert an SS58 address from one prefix to another. Answers: "is this the same account on Polkadot and Kusama?" Shows the address in both formats |
-| `ss58_validate` | planned | none | Validate an SS58 address: check encoding, extract prefix, identify the network it belongs to |
+| `ss58_decode` | implemented | none | Decode an SS58 address into its raw public key (hex) and SS58 prefix. Answers: "what prefix/network is this address for?" |
+| `ss58_encode` | implemented | none | Encode a raw public key (hex) into an SS58 address with a given prefix. Answers: "what's this account's address on Kusama?" |
+| `ss58_convert` | implemented | none | Convert an SS58 address from one prefix to another. Answers: "is this the same account on Polkadot and Kusama?" Shows the address in both formats |
+| `ss58_validate` | implemented | none | Validate an SS58 address: check encoding, extract prefix, identify the network it belongs to |
 
 ### SS58 prefix reference
 | Prefix | Network |
@@ -51,8 +51,8 @@ The `subxt` client already downloads metadata on first connection (~200KB–1MB)
 
 | Tool | Status | Chain | Description |
 |---|---|---|---|
-| `list_pallets` | planned | any | List all pallets in the runtime with their index. Answers: "what pallets does this chain have?" |
-| `pallet_info` | planned | any | Overview of a single pallet: description (from docs), number of calls/storage/events/errors/constants. Answers: "does this chain have pallet X? what does it do?" |
+| `list_pallets` | implemented | any | List all pallets in the runtime with their index. Answers: "what pallets does this chain have?" |
+| `pallet_info` | implemented | any | Overview of a single pallet: description (from docs), number of calls/storage/events/errors/constants. Answers: "does this chain have pallet X? what does it do?" |
 | `list_calls` | planned | any | List all extrinsics (dispatchable calls) for a pallet with one-line descriptions. Answers: "what can I do with the Staking pallet?" |
 | `call_info` | planned | any | Full detail for a specific call: parameters with names and types, documentation, dispatch origin. Answers: "what are the params for `Staking.nominate`?" |
 | `list_storage` | planned | any | List all storage entries for a pallet: name, key types, value type, docs summary. Answers: "what data does the Staking pallet store?" |

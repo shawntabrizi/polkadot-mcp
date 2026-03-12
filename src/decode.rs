@@ -1,8 +1,9 @@
-/// Dynamic value decoding: convert subxt's DecodedValueThunk into human-readable output.
-///
-/// This is the hardest module in the codebase. subxt dynamic mode returns
-/// `scale_value::Value` types that need to be navigated and formatted
-/// contextually (balances as DOT, block numbers as time estimates, etc.).
+#![allow(dead_code)]
+//! Dynamic value decoding: convert subxt's DecodedValueThunk into human-readable output.
+//!
+//! This is the hardest module in the codebase. subxt dynamic mode returns
+//! `scale_value::Value` types that need to be navigated and formatted
+//! contextually (balances as DOT, block numbers as time estimates, etc.).
 
 use subxt::dynamic::{At, DecodedValue};
 use subxt::ext::scale_value::{Composite, ValueDef};
@@ -44,7 +45,7 @@ pub fn format_balance_field(
 ) -> String {
     let planck = value
         .at(field_name)
-        .map(|v| value_as_u128(v))
+        .map(value_as_u128)
         .unwrap_or(0);
     format_balance(planck, config.token_decimals, &config.token_symbol)
 }

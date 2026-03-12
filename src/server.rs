@@ -9,13 +9,14 @@ use rmcp::{ErrorData, ServerHandler, tool, tool_handler, tool_router};
 
 use crate::network::{ChainConfig, Network};
 use crate::pool::ChainPool;
-use crate::tools::{account, chain};
+use crate::tools::{account, chain, metadata, ss58};
 
 /// The MCP server. Holds all network configs and a shared connection pool.
 #[derive(Clone)]
 pub struct PolkadotMcp {
     pub networks: Arc<HashMap<String, Network>>,
     pub pool: Arc<ChainPool>,
+    #[allow(dead_code)]
     pub signer: Option<Arc<subxt_signer::sr25519::Keypair>>,
     tool_router: ToolRouter<Self>,
 }
@@ -44,6 +45,81 @@ impl PolkadotMcp {
         Parameters(params): Parameters<account::GetBalancesParams>,
     ) -> Result<CallToolResult, ErrorData> {
         account::get_balances(self, params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    // --- SS58 Address Utilities (offline, no chain connection needed) ---
+
+    #[tool(description = "Decode an SS58 address into its raw public key (hex) and SS58 prefix. \
+        Answers: 'what prefix/network is this address for?' No chain connection needed.")]
+    async fn ss58_decode(
+        &self,
+        Parameters(params): Parameters<ss58::Ss58DecodeParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        ss58::ss58_decode(params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    #[tool(description = "Encode a raw public key (hex) into an SS58 address with a given prefix. \
+        Answers: 'what is this account's address on Kusama?' No chain connection needed.")]
+    async fn ss58_encode(
+        &self,
+        Parameters(params): Parameters<ss58::Ss58EncodeParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        ss58::ss58_encode(params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    #[tool(description = "Convert an SS58 address from one network prefix to another. \
+        Answers: 'is this the same account on Polkadot and Kusama?' Shows address in both formats. \
+        No chain connection needed.")]
+    async fn ss58_convert(
+        &self,
+        Parameters(params): Parameters<ss58::Ss58ConvertParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        ss58::ss58_convert(params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    #[tool(description = "Validate an SS58 address: check encoding, extract prefix, identify network. \
+        No chain connection needed.")]
+    async fn ss58_validate(
+        &self,
+        Parameters(params): Parameters<ss58::Ss58ValidateParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        ss58::ss58_validate(params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    // --- Runtime Metadata Introspection ---
+
+    #[tool(description = "List all pallets in the runtime with their index and item counts \
+        (calls, storage, events, errors, constants). This is the AI's map of what a chain can do. \
+        Use 'network' param for: 'polkadot' (default), 'kusama', 'westend', 'paseo'. \
+        Use 'chain' param for: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', 'coretime'.")]
+    async fn list_pallets(
+        &self,
+        Parameters(params): Parameters<metadata::ListPalletsParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        metadata::list_pallets(self, params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    #[tool(description = "Get detailed info for a specific pallet: documentation, all calls with \
+        parameter names, storage entries, events, errors, and constants. \
+        Use 'network' param for: 'polkadot' (default), 'kusama', 'westend', 'paseo'. \
+        Use 'chain' param for: 'relay' (default), 'asset-hub', 'bridge-hub', 'people', 'collectives', 'coretime'.")]
+    async fn pallet_info(
+        &self,
+        Parameters(params): Parameters<metadata::PalletInfoParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        metadata::pallet_info(self, params)
             .await
             .map_err(|e| ErrorData::internal_error(e.to_string(), None))
     }

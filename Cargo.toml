@@ -36,3 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 thiserror = "1"
 bs58 = "0.5.1"
+
+# Polkadot primitives
+sp-core = { version = "39", default-features = false, features = ["std"] }
+hex = "0.4"
