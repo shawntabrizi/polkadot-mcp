@@ -63,16 +63,6 @@ impl ChainPool {
         &self.network.relay
     }
 
-    /// Collectives parachain client (fellowship, salary).
-    pub async fn collectives(&self) -> Result<OnlineClient<PolkadotConfig>> {
-        self.get(&self.network.collectives.name).await
-    }
-
-    /// Collectives chain config.
-    pub fn collectives_config(&self) -> &ChainConfig {
-        &self.network.collectives
-    }
-
     /// Asset Hub parachain client.
     pub async fn asset_hub(&self) -> Result<OnlineClient<PolkadotConfig>> {
         self.get(&self.network.asset_hub.name).await
@@ -81,6 +71,49 @@ impl ChainPool {
     /// Asset Hub chain config.
     pub fn asset_hub_config(&self) -> &ChainConfig {
         &self.network.asset_hub
+    }
+
+    /// Bridge Hub parachain client.
+    pub async fn bridge_hub(&self) -> Result<OnlineClient<PolkadotConfig>> {
+        self.get(&self.network.bridge_hub.name).await
+    }
+
+    /// Bridge Hub chain config.
+    pub fn bridge_hub_config(&self) -> &ChainConfig {
+        &self.network.bridge_hub
+    }
+
+    /// People chain client.
+    pub async fn people(&self) -> Result<OnlineClient<PolkadotConfig>> {
+        self.get(&self.network.people.name).await
+    }
+
+    /// People chain config.
+    pub fn people_config(&self) -> &ChainConfig {
+        &self.network.people
+    }
+
+    /// Collectives parachain client (fellowship, salary).
+    /// Returns an error if the network has no Collectives chain (e.g. Kusama).
+    pub async fn collectives(&self) -> Result<OnlineClient<PolkadotConfig>> {
+        let config = self.network.collectives.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Collectives chain is not available on this network"))?;
+        self.get(&config.name).await
+    }
+
+    /// Collectives chain config (None on networks without Collectives, e.g. Kusama).
+    pub fn collectives_config(&self) -> Option<&ChainConfig> {
+        self.network.collectives.as_ref()
+    }
+
+    /// Coretime parachain client (blockspace allocation).
+    pub async fn coretime(&self) -> Result<OnlineClient<PolkadotConfig>> {
+        self.get(&self.network.coretime.name).await
+    }
+
+    /// Coretime chain config.
+    pub fn coretime_config(&self) -> &ChainConfig {
+        &self.network.coretime
     }
 
     /// Get relay + collectives clients in parallel (for fellowship queries that

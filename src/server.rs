@@ -1,33 +1,47 @@
 use std::sync::Arc;
 
-use rmcp::model::ServerInfo;
-use rmcp::{ServerHandler, tool_router};
+use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::wrapper::Parameters;
+use rmcp::model::{CallToolResult, ServerCapabilities, ServerInfo};
+use rmcp::{ErrorData, ServerHandler, tool, tool_router};
 
 use crate::network::Network;
 use crate::pool::ChainPool;
+use crate::tools::{account, chain};
 
 /// The MCP server. Holds the chain connection pool and optional signer.
-/// Tools are defined in the `tools/` modules and registered via `#[tool_box]`.
 #[derive(Clone)]
 pub struct PolkadotMcp {
     pub pool: Arc<ChainPool>,
     pub signer: Option<Arc<subxt_signer::sr25519::Keypair>>,
+    tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl PolkadotMcp {
-    // Tools are implemented in tools/*.rs and called via #[tool] attribute.
-    // The #[tool_box] macro on this impl block collects all #[tool] methods
-    // and registers them with the MCP server.
-    //
-    // Tool methods are defined in:
-    //   - tools/chain.rs     (chain_info, query_storage, ...)
-    //   - tools/account.rs   (account_info, account_balances, ...)
-    //   - tools/fellowship.rs (fellowship_status, ...)
-    //   - tools/governance.rs (referenda_active, vote, ...)
-    //   - tools/staking.rs   (staking_status, ...)
-    //
-    // TODO: Register tool methods here as they are implemented.
+    #[tool(description = "Get chain information: network name, token symbol, decimals, \
+        current block number, and runtime version. Defaults to relay chain. \
+        Use 'chain' param for: 'asset-hub', 'bridge-hub', 'people', 'collectives', 'coretime'.")]
+    async fn chain_info(
+        &self,
+        Parameters(params): Parameters<chain::ChainInfoParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        chain::chain_info(self, params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
+
+    #[tool(description = "Get account balances: free, reserved, frozen, and transferable \
+        balance for an SS58 address. Defaults to relay chain. Use 'chain' param for: \
+        'asset-hub', 'bridge-hub', 'people', 'collectives', 'coretime'.")]
+    async fn get_balances(
+        &self,
+        Parameters(params): Parameters<account::GetBalancesParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        account::get_balances(self, params)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))
+    }
 }
 
 impl PolkadotMcp {
@@ -38,6 +52,7 @@ impl PolkadotMcp {
         Self {
             pool: ChainPool::new(network),
             signer: signer.map(Arc::new),
+            tool_router: Self::tool_router(),
         }
     }
 }
@@ -54,6 +69,7 @@ impl ServerHandler for PolkadotMcp {
                  to be configured and will note this in their description."
                     .to_string(),
             ),
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
             ..Default::default()
         }
     }
