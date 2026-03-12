@@ -1,0 +1,38 @@
+[package]
+name = "polkadot-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "MCP server for AI-native interaction with Polkadot, Kusama, and Substrate chains"
+license = "Apache-2.0"
+repository = "https://github.com/polkadot-mcp/polkadot-mcp"
+keywords = ["polkadot", "substrate", "mcp", "ai", "blockchain"]
+categories = ["api-bindings", "command-line-utilities"]
+
+[dependencies]
+# MCP protocol
+rmcp = { version = "0.16", features = ["server", "macros", "transport-io"] }
+
+# Substrate chain client
+subxt = "0.42"
+subxt-signer = { version = "0.42", features = ["sr25519"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = { version = "0.8", features = ["derive"] }
+
+# HTTP client (for Subscan API backend)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Logging — MUST go to stderr, stdout is MCP stdio transport
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+bs58 = "0.5.1"
