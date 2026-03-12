@@ -14,6 +14,9 @@ General-purpose tools for querying any chain.
 |---|---|---|---|
 | `chain_info` | implemented | any | Chain name, type, token, decimals, SS58 prefix, current block, spec/tx version |
 | `block_info` | planned | any | Block details: number, hash, parent, timestamp, extrinsics count, decoded events |
+| `extrinsic_info` | planned | any | Look up a specific extrinsic by hash or by block number + index. Shows decoded call, signer, fee, success/failure, events emitted. Answers: "did my transaction go through?" |
+| `fee_estimate` | planned | any | Estimate the fee for a given call without submitting. Uses `payment_queryInfo` or dry-run. Answers: "how much will this cost?" |
+| `scheduled_actions` | planned | any | List pending scheduled dispatches: governance enactments, runtime upgrades, etc. Queries `Scheduler.Agenda` and `Scheduler.Lookup` |
 
 ---
 
@@ -35,9 +38,10 @@ The `subxt` client already downloads metadata on first connection (~200KB–1MB)
 | `list_errors` | planned | any | List all errors for a pallet with descriptions. Answers: "what errors can `ConvictionVoting.vote` return?" |
 | `list_constants` | planned | any | List all runtime constants for a pallet with values and descriptions. Answers: "what are the configuration parameters for staking?" |
 | `constant_value` | planned | any | Get the decoded value of a specific runtime constant. Answers: "what is the existential deposit?" / "how long is the unbonding period?" |
-| `query_storage` | planned | any | Read any storage item by pallet + entry name + keys. Raw decoded value output. Escape hatch for anything not covered by a dedicated tool |
+| `query_storage` | planned | any | Read any storage item by pallet + entry name + keys. Supports optional `at_block` parameter for historical state. Raw decoded value output. Escape hatch for anything not covered by a dedicated tool |
 | `decode_call` | planned | any | Decode a hex-encoded call/extrinsic into human-readable pallet + method + args using chain metadata |
 | `type_info` | planned | any | Describe a type by ID from the metadata type registry. Useful for understanding complex nested types returned by other tools |
+| `runtime_apis` | planned | any | List available runtime APIs and their methods. Some chains expose custom APIs beyond the standard set |
 
 ### Why this matters
 
@@ -97,6 +101,9 @@ Direct staking (nominating validators) and nomination pools.
 | `nomination_pools` | stub | relay | Pool membership: pool ID, your points/stake, pending rewards, pool state, commission |
 | `pool_info` | planned | relay | Details on a specific nomination pool by ID: state, member count, roles, points, commission |
 | `validators_info` | planned | relay | Current active validator set, era points, commission rates. Useful for nomination decisions |
+| `validator_detail` | planned | relay | Single validator details: commission, self-stake, total stake, nominator count, identity, era points history, slash history |
+| `pools_list` | planned | relay | Browse nomination pools: list by state (Open/Blocked/Destroying), member count, total stake. Answers: "what pools can I join?" |
+| `pool_create` | planned [write] | relay | Create a new nomination pool. Builds `NominationPools.create(amount, root, nominator, bouncer)` |
 | `bond` | planned [write] | relay | Bond tokens for staking. Builds `Staking.bond(value, payee)` |
 | `nominate` | planned [write] | relay | Set nomination targets. Builds `Staking.nominate(targets)` |
 | `unbond` | planned [write] | relay | Unbond tokens. Builds `Staking.unbond(value)`. Shows unlock timeline |
@@ -137,7 +144,8 @@ Referendum lifecycle, conviction voting, and delegation.
 | `referendum_detail` | stub | relay | Full details for a referendum by index: track, origin, proposal call data (decoded), tally, timeline, deposits |
 | `my_votes` | stub | relay | All active votes across all tracks with conviction, balance, lock expiry. Shows delegations too |
 | `delegation_status` | stub | relay | Current delegation per track: delegate address, conviction, balance |
-| `vote` | stub [write] | relay | Vote aye/nay on a referendum with conviction (0-6) and balance. Builds `ConvictionVoting.vote()` |
+| `preimage_info` | planned | relay | Look up and decode a preimage by hash. Shows the decoded call data of a governance proposal. Answers: "what does this referendum actually propose?" Queries `Preimage.PreimageFor` and `Preimage.StatusFor` |
+| `vote` | stub [write] | relay | Vote on a referendum. Supports Standard (aye/nay with conviction), Split (aye + nay amounts), and SplitAbstain (aye + nay + abstain amounts). Builds `ConvictionVoting.vote()` |
 | `delegate` | stub [write] | relay | Delegate voting power on one or all tracks. Builds `ConvictionVoting.delegate()` |
 | `undelegate` | planned [write] | relay | Remove delegation on a track. Builds `ConvictionVoting.undelegate(class)` |
 | `unlock_votes` | planned [write] | relay | Unlock expired conviction voting locks. Builds `ConvictionVoting.unlock(class, target)` |
@@ -170,6 +178,8 @@ Referendum lifecycle, conviction voting, and delegation.
 | `Referenda` | `ReferendumCount` | — | u32 |
 | `ConvictionVoting` | `VotingFor` | (AccountId, TrackId) | `Casting{votes}` or `Delegating{target}` |
 | `ConvictionVoting` | `ClassLocksFor` | AccountId | `Vec<(Class, Balance)>` |
+| `Preimage` | `StatusFor` | Hash | `Requested { deposit, count, len }` or `Unrequested { deposit, len }` |
+| `Preimage` | `PreimageFor` | (Hash, Len) | Raw bytes (decoded via metadata) |
 
 ### Conviction table
 | Level | Multiplier | Lock period (DOT) |
@@ -299,9 +309,13 @@ Multi-signature operations.
 
 ---
 
-## 11. Assets (Asset Hub)
+## 11. Assets & NFTs (Asset Hub)
 
-Fungible asset management on Asset Hub. For non-native tokens (USDT, USDC, etc.).
+Fungible assets, foreign assets, and NFTs on Asset Hub.
+
+### Fungible assets (local)
+
+Non-native tokens registered on Asset Hub (USDT, USDC, etc.).
 
 | Tool | Status | Chain | Description |
 |---|---|---|---|
@@ -310,12 +324,38 @@ Fungible asset management on Asset Hub. For non-native tokens (USDT, USDC, etc.)
 | `asset_info` | planned | asset-hub | Detailed metadata for a specific asset: admin, issuer, freezer, supply, deposit, status |
 | `asset_transfer` | planned [write] | asset-hub | Transfer an asset. Builds `Assets.transfer(id, target, amount)` |
 
+### Foreign assets
+
+Tokens originating from other chains, received via XCM. Tracked in the `ForeignAssets` pallet.
+
+| Tool | Status | Chain | Description |
+|---|---|---|---|
+| `foreign_assets_list` | planned | asset-hub | List foreign assets with metadata and multilocation origin |
+| `foreign_asset_balance` | planned | asset-hub | Balance of a foreign asset for an address |
+
+### NFTs
+
+Non-fungible tokens via the `Nfts` pallet on Asset Hub.
+
+| Tool | Status | Chain | Description |
+|---|---|---|---|
+| `nft_collections` | planned | asset-hub | List NFT collections: ID, owner, item count, metadata |
+| `nft_items` | planned | asset-hub | List items in a collection with owner and metadata |
+| `nfts_owned` | planned | asset-hub | List all NFTs owned by an address across collections |
+| `nft_transfer` | planned [write] | asset-hub | Transfer an NFT. Builds `Nfts.transfer(collection, item, dest)` |
+
 ### Storage reference
 | Pallet | Entry | Key | Returns |
 |---|---|---|---|
 | `Assets` | `Asset` | AssetId | `{ owner, issuer, admin, freezer, supply, deposit, min_balance, ... }` |
 | `Assets` | `Account` | (AssetId, AccountId) | `{ balance, status, reason, extra }` |
 | `Assets` | `Metadata` | AssetId | `{ deposit, name, symbol, decimals, is_frozen }` |
+| `ForeignAssets` | `Asset` | MultiLocation | `{ owner, issuer, admin, freezer, supply, ... }` |
+| `ForeignAssets` | `Account` | (MultiLocation, AccountId) | `{ balance, status, ... }` |
+| `Nfts` | `Collection` | CollectionId | `{ owner, items, item_metadatas, attributes }` |
+| `Nfts` | `Item` | (CollectionId, ItemId) | `{ owner, approvals, deposit }` |
+| `Nfts` | `CollectionMetadataOf` | CollectionId | `{ deposit, data }` |
+| `Nfts` | `ItemMetadataOf` | (CollectionId, ItemId) | `{ deposit, data }` |
 
 ### Common assets (Polkadot Asset Hub)
 | ID | Symbol | Name |
@@ -344,7 +384,28 @@ Teleport or reserve-transfer assets between chains. Primarily between relay and 
 
 ---
 
-## 13. Coretime (Coretime Chain)
+## 13. Parachains (Relay Chain)
+
+Information about registered parachains and their status.
+
+| Tool | Status | Chain | Description |
+|---|---|---|---|
+| `parachains_list` | planned | relay | List all registered parachains with their IDs, lifecycle status (onboarding/active/offboarding), and head data hash |
+| `parachain_info` | planned | relay | Details for a specific parachain by ID: lifecycle, head data, current code hash, upgrade schedule |
+
+### Storage reference
+| Pallet | Entry | Key | Returns |
+|---|---|---|---|
+| `Paras` | `Parachains` | — | `Vec<ParaId>` |
+| `Paras` | `ParaLifecycles` | ParaId | `Onboarding`, `Parathread`, `Parachain`, `UpgradingParathread`, `DowngradingParachain`, `OffboardingParathread`, `OffboardingParachain` |
+| `Paras` | `Heads` | ParaId | HeadData |
+| `Paras` | `CurrentCodeHash` | ParaId | ValidationCodeHash |
+| `Paras` | `FutureCodeUpgrades` | ParaId | BlockNumber |
+| `Registrar` | `Paras` | ParaId | `{ manager, deposit, locked }` |
+
+---
+
+## 14. Coretime (Coretime Chain)
 
 Coretime (blockspace) purchases and management for parachains.
 
@@ -366,7 +427,7 @@ Coretime (blockspace) purchases and management for parachains.
 
 ---
 
-## 14. Utility / Batch
+## 15. Utility / Batch
 
 Combine multiple calls into one transaction. Used internally by other tools but also exposed directly.
 
@@ -383,37 +444,41 @@ Based on what users ask most about and what provides the most value:
 ### Phase 1 — Foundation + Metadata (current)
 - `chain_info` ✅
 - `get_balances` ✅
-- **Metadata introspection** — these are high-leverage because they let the agent self-serve on any chain:
+- **Metadata introspection** — high-leverage, lets the agent self-serve on any chain:
   - `list_pallets`, `pallet_info`
   - `list_calls`, `call_info`
   - `list_storage`, `storage_info`
   - `list_constants`, `constant_value`
   - `list_events`, `list_errors`
 - `query_storage`, `decode_call`
+- `extrinsic_info`, `fee_estimate`
 
 ### Phase 2 — Read-heavy user flows
-- `staking_status`, `nomination_pools`, `pool_info`
-- `referenda_active`, `referendum_detail`, `my_votes`
+- `staking_status`, `nomination_pools`, `pool_info`, `validator_detail`
+- `referenda_active`, `referendum_detail`, `my_votes`, `preimage_info`
 - `fellowship_status`, `fellowship_members`
 - `identity_of`
 - `account_locks`, `vesting_info`
 - `proxy_list`
-- `type_info`
+- `type_info`, `runtime_apis`
 
 ### Phase 3 — More reads + indexer integration
 - `staking_rewards`, `account_transfers` (Subscan)
 - `treasury_info`, `treasury_spends`, `bounties_list`
-- `assets_list`, `asset_balance`
-- `coretime_status`
+- `assets_list`, `asset_balance`, `foreign_assets_list`, `foreign_asset_balance`
+- `nft_collections`, `nft_items`, `nfts_owned`
+- `coretime_status`, `coretime_regions`
+- `parachains_list`, `parachain_info`
+- `pools_list`, `validators_info`
 - `delegation_status`
 - `fellowship_salary`, `fellowship_demotion_risk`
-- `validators_info`
+- `scheduled_actions`
 
 ### Phase 4 — Write transactions
-- `vote`, `delegate`, `undelegate`, `unlock_votes`
+- `vote` (Standard + Split + SplitAbstain), `delegate`, `undelegate`, `unlock_votes`
 - `transfer`, `vest`
 - `bond`, `nominate`, `unbond`, `chill`, `claim_staking_rewards`
-- `pool_join`, `pool_claim_payout`, `pool_unbond`
+- `pool_join`, `pool_claim_payout`, `pool_unbond`, `pool_create`
 - `fellowship_claim_salary`
 - `set_identity`, `request_judgement`
 - `xcm_transfer`
@@ -421,8 +486,8 @@ Based on what users ask most about and what provides the most value:
 
 ### Phase 5 — Advanced
 - `add_proxy`, `remove_proxy`
-- `asset_transfer`
-- `coretime_purchase`, `coretime_renew`
+- `asset_transfer`, `nft_transfer`
+- `coretime_purchase`, `coretime_renew`, `coretime_on_demand`
 - `multisig_info`, `create_multisig_call`
-- `block_info`
-- `bounty_detail`
+- `block_info`, `bounty_detail`
+- `xcm_fee_estimate`
